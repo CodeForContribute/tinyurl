@@ -74,9 +74,13 @@ Tests run against in-memory SQLite and need no external services:
 
 ## Deploying to App Platform
 
+The spec is already pointed at `CodeForContribute/tinyurl` on branch `main`.
+If you fork or rename, update the `repo` field in **both** the `services` and
+`jobs` blocks, and set `region` if `blr` is not nearest you.
+
 1. Push this repo to GitHub.
-2. Edit `.do/app.yaml` — replace `YOUR_GITHUB_USER/tinyurl` in **both** the
-   `services` and `jobs` blocks, and set `region` if `blr` is not nearest you.
+2. Authorize DigitalOcean to read it — one-time, at
+   <https://cloud.digitalocean.com/apps/github/install>.
 3. Create the app:
 
 ```bash
