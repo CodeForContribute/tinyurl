@@ -1,0 +1,82 @@
+# DigitalOcean App Platform spec.
+#
+# Create:  doctl apps create --spec .do/app.yaml
+# Update:  doctl apps update <APP_ID> --spec .do/app.yaml
+#
+# Replace the `github` block below with your own repo before the first deploy.
+name: tinyurl
+region: blr
+
+services:
+  - name: api
+    dockerfile_path: Dockerfile
+    source_dir: /
+
+    github:
+      repo: YOUR_GITHUB_USER/tinyurl
+      branch: main
+      deploy_on_push: true
+
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+
+    # Liveness only — deliberately does not touch Postgres, so a database blip
+    # cannot trigger a restart loop that is powerless to fix it.
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 3
+      success_threshold: 1
+      failure_threshold: 3
+
+    # Runs before each deploy's new containers take traffic.
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${links-db.DATABASE_URL}
+
+      - key: BASE_URL
+        scope: RUN_TIME
+        value: ${APP_URL}
+
+      - key: LOG_LEVEL
+        scope: RUN_TIME
+        value: INFO
+
+      - key: RATE_LIMIT_REQUESTS
+        scope: RUN_TIME
+        value: "20"
+
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        scope: RUN_TIME
+        value: "60"
+
+      # App Platform's router appends exactly one X-Forwarded-For entry.
+      - key: TRUSTED_PROXY_HOPS
+        scope: RUN_TIME
+        value: "1"
+
+jobs:
+  - name: migrate
+    kind: PRE_DEPLOY
+    dockerfile_path: Dockerfile
+    source_dir: /
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    run_command: alembic upgrade head
+
+    github:
+      repo: YOUR_GITHUB_USER/tinyurl
+      branch: main
+
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${links-db.DATABASE_URL}
+
+databases:
+  - name: links-db
+    engine: PG
+    version: "16"
+    production: false
