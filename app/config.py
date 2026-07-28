@@ -45,6 +45,11 @@ class Settings:
         # and appends one entry to X-Forwarded-For.
         self.trusted_proxy_hops: int = int(os.getenv("TRUSTED_PROXY_HOPS", "1"))
 
+        # Gates the disable endpoint. Left unset the endpoint fails closed
+        # (503) rather than being open — an unauthenticated delete would be
+        # strictly worse than having no delete at all.
+        self.admin_token: str = os.getenv("ADMIN_TOKEN", "")
+
         self.db_pool_size: int = int(os.getenv("DB_POOL_SIZE", "5"))
         self.db_max_overflow: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 

@@ -33,7 +33,19 @@ class Link(Base):
 
     created_by_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
+    # Soft delete. A disabled link stops redirecting immediately but the row is
+    # retained: an abusive link is evidence, and keeping it also guarantees the
+    # code is never handed out to somebody else later.
+    disabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    disabled_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     __table_args__ = (Index("ix_links_code", "code", unique=True),)
+
+    @property
+    def is_active(self) -> bool:
+        return self.disabled_at is None
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<Link code={self.code!r}>"

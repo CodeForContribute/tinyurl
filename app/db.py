@@ -1,6 +1,7 @@
 """Database engine, session lifecycle, and link persistence."""
 
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
@@ -117,6 +118,39 @@ async def create_link(
     )
 
 
-async def get_link_by_code(session: AsyncSession, code: str) -> Link | None:
-    result = await session.execute(select(Link).where(Link.code == code))
+async def get_link_by_code(
+    session: AsyncSession, code: str, include_disabled: bool = False
+) -> Link | None:
+    """Fetch a link by code.
+
+    Disabled links are excluded by default so the redirect path cannot serve
+    them. Admin lookups pass include_disabled=True to see the full record.
+    """
+    stmt = select(Link).where(Link.code == code)
+    if not include_disabled:
+        stmt = stmt.where(Link.disabled_at.is_(None))
+
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+
+async def disable_link(
+    session: AsyncSession, code: str, reason: str | None = None
+) -> Link | None:
+    """Soft-delete a link. Returns None if no such code exists.
+
+    Disabling an already-disabled link is a no-op that returns the existing
+    row, so retries and duplicate abuse reports stay idempotent rather than
+    overwriting the original timestamp and reason.
+    """
+    link = await get_link_by_code(session, code, include_disabled=True)
+    if link is None:
+        return None
+
+    if link.disabled_at is None:
+        link.disabled_at = datetime.now(timezone.utc)
+        link.disabled_reason = reason
+        await session.commit()
+        await session.refresh(link)
+
+    return link

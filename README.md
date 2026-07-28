@@ -9,13 +9,14 @@ expiration, Redis caching and accounts are deliberately not here yet — see
 
 ## API
 
-| Method | Path           | Purpose                                    |
-| ------ | -------------- | ------------------------------------------ |
-| `POST` | `/api/shorten` | Create a short link                        |
-| `GET`  | `/{code}`      | 302 redirect to the target                 |
-| `GET`  | `/healthz`     | Liveness — no dependencies                 |
-| `GET`  | `/readyz`      | Readiness — checks the database            |
-| `GET`  | `/docs`        | OpenAPI browser                            |
+| Method   | Path                | Purpose                                 |
+| -------- | ------------------- | --------------------------------------- |
+| `POST`   | `/api/shorten`      | Create a short link                     |
+| `GET`    | `/{code}`           | 302 redirect to the target              |
+| `DELETE` | `/api/links/{code}` | Disable a link — admin token required   |
+| `GET`    | `/healthz`          | Liveness — no dependencies              |
+| `GET`    | `/readyz`           | Readiness — checks the database         |
+| `GET`    | `/docs`             | OpenAPI browser                         |
 
 ```bash
 curl -X POST http://localhost:8080/api/shorten \
@@ -31,6 +32,25 @@ curl -X POST http://localhost:8080/api/shorten \
   "created_at": "2026-07-29T01:20:28Z"
 }
 ```
+
+### Disabling a link
+
+Abuse response. Requires the `ADMIN_TOKEN` shared secret:
+
+```bash
+curl -X DELETE "https://your-app/api/links/aB3xY9z?reason=reported+as+phishing" \
+  -H "X-Admin-Token: $ADMIN_TOKEN"
+```
+
+The link stops redirecting immediately (subsequent visits 404). It is a **soft
+delete**: the row is retained with `disabled_at` and `disabled_reason`, because
+an abusive link is evidence and retaining it also guarantees the code is never
+reissued to someone else. The call is idempotent — a duplicate report does not
+overwrite the original timestamp or reason.
+
+With `ADMIN_TOKEN` unset the endpoint returns 503 rather than running
+unprotected. `reason` is a query parameter, not a body, since DELETE-with-body
+is unevenly supported and this needs to work from plain curl during an incident.
 
 ## Design decisions
 
@@ -118,8 +138,10 @@ not for anything you care about losing. Flip it before real traffic.
   path is slow and racy — the name can be re-pointed after the check passes — so
   literal private IPs are blocked but `evil.com` resolving to `10.0.0.1` is not.
   Egress filtering is the correct layer for that.
-- **No delete or edit.** Links are permanent once created, which means abuse
-  response currently requires a manual `DELETE FROM links`.
+- **Admin auth is a single shared token,** not per-user accounts. Anyone
+  holding `ADMIN_TOKEN` can disable any link. Rotating it means updating the
+  app spec and redeploying.
+- **No edit.** A link's target cannot be changed after creation, only disabled.
 
 ## Roadmap
 

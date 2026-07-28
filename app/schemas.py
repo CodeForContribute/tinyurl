@@ -21,6 +21,15 @@ class ShortenResponse(BaseModel):
     created_at: datetime
 
 
+class DisableLinkResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    target_url: str
+    disabled_at: datetime
+    disabled_reason: str | None = None
+
+
 class ErrorResponse(BaseModel):
     detail: str
 

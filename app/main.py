@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db import dispose_engine, init_engine
-from app.routers import health, redirect, shorten
+from app.routers import admin, health, redirect, shorten
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ def create_app(lifespan_handler=lifespan) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(shorten.router)
+    app.include_router(admin.router)
     # Must come last: it owns the /{code} catch-all.
     app.include_router(redirect.router)
 
