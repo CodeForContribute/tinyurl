@@ -6,21 +6,17 @@
 # Replace the `github` block below with your own repo before the first deploy.
 name: tinyurl
 region: blr
-
 services:
   - name: api
     dockerfile_path: Dockerfile
     source_dir: /
-
     github:
       repo: CodeForContribute/tinyurl
       branch: main
       deploy_on_push: true
-
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
-
     # Liveness only — deliberately does not touch Postgres, so a database blip
     # cannot trigger a restart loop that is powerless to fix it.
     health_check:
@@ -30,34 +26,40 @@ services:
       timeout_seconds: 3
       success_threshold: 1
       failure_threshold: 3
-
     # Runs before each deploy's new containers take traffic.
     envs:
       - key: DATABASE_URL
         scope: RUN_AND_BUILD_TIME
         value: ${links-db.DATABASE_URL}
-
       - key: BASE_URL
         scope: RUN_TIME
         value: ${APP_URL}
-
       - key: LOG_LEVEL
         scope: RUN_TIME
         value: INFO
-
       - key: RATE_LIMIT_REQUESTS
         scope: RUN_TIME
         value: "20"
-
       - key: RATE_LIMIT_WINDOW_SECONDS
         scope: RUN_TIME
         value: "60"
-
       # App Platform's router appends exactly one X-Forwarded-For entry.
       - key: TRUSTED_PROXY_HOPS
         scope: RUN_TIME
         value: "1"
-
+      # Gates DELETE /api/links/{code}. Stored here in DigitalOcean's own
+      # encrypted form (EV[1:...]), which only this app can decrypt — safe to
+      # commit, and it means `doctl apps update --spec` preserves the token
+      # instead of silently wiping it and 503-ing the endpoint.
+      #
+      # Caveat: `doctl apps spec validate` and `doctl apps create` both REJECT a
+      # pre-encrypted secret ("must not be encrypted before app is created").
+      # To stand up a fresh app from this spec, replace the value below with a
+      # plaintext token first; DigitalOcean re-encrypts it on write.
+      - key: ADMIN_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: EV[1:NxvTQRl6yBIHVnD9moFKej45QJSlLUyp:jAQsPV56CINnHY6ut+zTeacnLvukCOa+zPKbNtfLhblwZK+g9T+JELL2x4dqEAW8O6hQ33ads0so5fh8KLPlk+cFxuiqlAmvEMfYspODI1s=]
 jobs:
   - name: migrate
     kind: PRE_DEPLOY
@@ -65,16 +67,13 @@ jobs:
     source_dir: /
     instance_size_slug: apps-s-1vcpu-0.5gb
     run_command: alembic upgrade head
-
     github:
       repo: CodeForContribute/tinyurl
       branch: main
-
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${links-db.DATABASE_URL}
-
 databases:
   - name: links-db
     engine: PG
